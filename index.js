@@ -1,49 +1,80 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: "https://ghost-chat-73qc.onrender.com", // Update with your frontend URL
-        methods: ["GET", "POST"]
-    },
-    pingInterval: 25000,
-    pingTimeout: 5000,
-});
+const io = new Server(server);
 
-app.use(cors());
-app.use(express.static('public')); // Serve static files
+// Serve static files from the "public" directory
+app.use(express.static('public'));
 
+// Handle socket connections
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
+    console.log(`[INFO] User connected: ${socket.id}`);
 
-    socket.on('join-room', ({ roomId, username, userColor }) => {
+    let username = '';
+    let roomId = '';
+    let userColor = '';
+
+    // Join room
+    socket.on('join-room', ({ roomId: providedRoomId, username: providedUsername, userColor: providedUserColor }) => {
+        // Sanitize inputs
+        roomId = sanitizeInput(providedRoomId).trim();
+        username = sanitizeInput(providedUsername).trim() || `Guest-${Math.floor(Math.random() * 1000)}`;
+        userColor = sanitizeInput(providedUserColor);
+
+        // Truncate username if too long
+        if (username.length > 10) {
+            username = `${username.slice(0, 10)}...`;
+        }
+
+        // Join the specified room
         socket.join(roomId);
-        socket.to(roomId).emit('user-joined', `${username} joined the room.`);
-        console.log(`${username} joined room ${roomId}`);
-    });
+        console.log(`[INFO] ${username} joined room: ${roomId}`);
 
-    socket.on('send-message', ({ message, color }) => {
-        const roomId = Array.from(socket.rooms)[1]; // Get the room ID
-        const sender = socket.id; // Or use a username if available
-        io.to(roomId).emit('receive-message', { sender, message, color });
-    });
+        // Notify the room about the new user
+        socket.to(roomId).emit('user-joined', `${username} joined the chat!`);
 
-    socket.on('typing', ({ isTyping }) => {
-        const roomId = Array.from(socket.rooms)[1];
-        const username = socket.id; // Or use a username if available
-        socket.to(roomId).emit('show-typing', { username, isTyping });
-    });
+        // Send a welcome message to the new user
+        socket.emit('receive-message', {
+            sender: 'System',
+            message: `Welcome, ${username}!`,
+            color: 'green',
+        });
 
-    socket.on('disconnect', () => {
-        console.log('A user disconnected:', socket.id);
+        // Handle typing indicator
+        socket.on('typing', ({ isTyping }) => {
+            socket.to(roomId).emit('show-typing', { username, isTyping });
+        });
+
+        // Handle incoming messages
+        socket.on('send-message', ({ message, color }) => {
+            const sanitizedMessage = sanitizeInput(message);
+            if (sanitizedMessage) {
+                io.to(roomId).emit('receive-message', {
+                    sender: username,
+                    message: sanitizedMessage,
+                    color: userColor || color,
+                });
+            }
+        });
+
+        // Handle user disconnection
+        socket.on('disconnect', () => {
+            io.to(roomId).emit('user-left', `${username} left the chat.`);
+            console.log(`[INFO] ${username} disconnected.`);
+        });
     });
 });
+
+// Utility function to sanitize user inputs
+function sanitizeInput(input) {
+    if (!input) return '';
+    return String(input).replace(/</g, '&lt;').replace(/>/g, '&gt;').trim();
+}
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`[INFO] Server running on http://localhost:${PORT}`);
 });
