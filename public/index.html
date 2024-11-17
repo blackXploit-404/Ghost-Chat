@@ -9,11 +9,11 @@
 </head>
 <body>
     <div id="container">
-      <div class="logo">
-        <a href="/">
-            <img src="logo.png" alt="GhostChat Logo" height="50px">
-        </a>
-    </div>    
+        <div class="logo">
+            <a href="/">
+                <img src="logo.png" alt="GhostChat Logo" height="50px">
+            </a>
+        </div>
         <h1>Welcome to GhostChat</h1>
         <input type="text" id="username-input" placeholder="Enter your username (optional)">
         <button id="generate-id">Generate Room ID</button>
@@ -21,19 +21,24 @@
         <button id="join-btn" style="display: none;">Join Room</button>
     </div>
 
-    <div id="chat-container">
+    <div id="chat-container" style="display: none;">
         <div id="room-info"></div>
         <div id="messages"></div>
         <div id="typing-indicator"></div>
         <input type="text" id="message-input" placeholder="Type a message and press Enter">
     </div>
-  <div id="footer">
-    <h4>We aren't monitoring the chat. Please be respectful while chatting with others.</h4>
-    <h4>Note: This chat is not connected to any database. Once you refresh your browser, the chat will be permanently erased.</h4>
-  </div>
+    
+    <div id="footer">
+        <h4>We aren't monitoring the chat. Please be respectful while chatting with others.</h4>
+        <h4>Note: This chat is not connected to any database. Once you refresh your browser, the chat will be permanently erased.</h4>
+    </div>
+    
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io();
+        // Connect to the deployed server
+        const socket = io("https://ghost-chat-73qc.onrender.com", {
+            transports: ["websocket", "polling"]
+        });
 
         const container = document.getElementById('container');
         const generateIdButton = document.getElementById('generate-id');
