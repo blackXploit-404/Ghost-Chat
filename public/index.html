@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GhostChat</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="shortcut icon" href="favicon.png" type="image/x-icon">
+</head>
+<body>
+    <div id="container">
+      <div class="logo">
+        <a href="/">
+            <img src="logo.png" alt="GhostChat Logo" height="50px">
+        </a>
+    </div>    
+        <h1>Welcome to GhostChat</h1>
+        <input type="text" id="username-input" placeholder="Enter your username (optional)">
+        <button id="generate-id">Generate Room ID</button>
+        <input type="text" id="room-id-input" placeholder="Enter Room ID" style="display: none;">
+        <button id="join-btn" style="display: none;">Join Room</button>
+    </div>
+
+    <div id="chat-container">
+        <div id="room-info"></div>
+        <div id="messages"></div>
+        <div id="typing-indicator"></div>
+        <input type="text" id="message-input" placeholder="Type a message and press Enter">
+    </div>
+  <div id="footer">
+    <h4>We aren't monitoring the chat. Please be respectful while chatting with others.</h4>
+    <h4>Note: This chat is not connected to any database. Once you refresh your browser, the chat will be permanently erased.</h4>
+  </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        const container = document.getElementById('container');
+        const generateIdButton = document.getElementById('generate-id');
+        const roomIdInput = document.getElementById('room-id-input');
+        const joinBtn = document.getElementById('join-btn');
+        const usernameInput = document.getElementById('username-input');
+        const chatContainer = document.getElementById('chat-container');
+        const roomInfo = document.getElementById('room-info');
+        const messages = document.getElementById('messages');
+        const messageInput = document.getElementById('message-input');
+        const typingIndicator = document.getElementById('typing-indicator');
+
+        let roomId = null;
+        let username = null;
+        let userColor = null; // Store unique user color
+        let typingTimeout;
+
+        // Generate Room ID
+        generateIdButton.addEventListener('click', () => {
+            roomId = `room-${Math.random().toString(36).substr(2, 9)}`;
+            alert(`Your Room ID: ${roomId}\nShare this ID with friends to join.`);
+            switchToChat();
+        });
+
+        // Show Room ID input
+        roomIdInput.style.display = 'block';
+        joinBtn.style.display = 'block';
+
+        joinBtn.addEventListener('click', () => {
+            roomId = roomIdInput.value.trim();
+            if (!roomId) {
+                alert('Please enter a valid Room ID.');
+                return;
+            }
+            switchToChat();
+        });
+
+        function switchToChat() {
+            username = usernameInput.value.trim() || `Guest-${Math.floor(Math.random() * 1000)}`;
+            userColor = getRandomColor(); // Assign a random color to the user
+            container.style.display = 'none';
+            chatContainer.style.display = 'block';
+            roomInfo.innerText = `Room ID: ${roomId} | Username: ${username}`;
+            socket.emit('join-room', { roomId, username, userColor });
+        }
+
+        socket.on('receive-message', ({ sender, message, color }) => {
+            const messageElement = document.createElement('div');
+            messageElement.style.color = color; // Set message color
+            messageElement.innerText = `${sender}: ${message}`;
+            messages.appendChild(messageElement);
+        });
+
+        socket.on('user-joined', (message) => {
+            const infoElement = document.createElement('div');
+            infoElement.style.color = 'green';
+            infoElement.innerText = message;
+            messages.appendChild(infoElement);
+        });
+
+        socket.on('user-left', (message) => {
+            const infoElement = document.createElement('div');
+            infoElement.style.color = 'red';
+            infoElement.innerText = message;
+            messages.appendChild(infoElement);
+        });
+
+        socket.on('show-typing', ({ username, isTyping }) => {
+            typingIndicator.innerText = isTyping ? `${username} is typing...` : '';
+        });
+
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const message = messageInput.value.trim();
+                if (message) {
+                    socket.emit('send-message', { message, color: userColor });
+                    messageInput.value = '';
+                    socket.emit('typing', { isTyping: false });
+                }
+            } else {
+                socket.emit('typing', { isTyping: true });
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    socket.emit('typing', { isTyping: false });
+                }, 1000);
+            }
+        });
+
+        // Function to generate a random color
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+    </script>
+</body>
+</html>
